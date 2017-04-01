@@ -5,7 +5,14 @@ project(DistributedMonitor)
 set(CMAKE_CXX_STANDARD 11)
 
 set(SOURCE_FILES proxy/main.cpp)
+
 include_directories("/usr/local/include")
+include_directories("${PROJECT_BINARY_DIR}/client")
+#add_subdirectory("${PROJECT_SOURCE_DIR}/client")
 SET(GCC_COVERAGE_LINK_FLAGS    "-lzmq")
+
 SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}" )
 add_executable(DistributedMonitor ${SOURCE_FILES})
+
+set(SOURCE_FILES client/client.cpp client/client.h)
+add_executable(Client ${SOURCE_FILES})
