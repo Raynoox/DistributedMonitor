@@ -8,9 +8,6 @@
 #include <vector>
 #include <thread>
 #include "../client/monitor.h"
-#include <zmq.hpp>
-#include <zhelpers.hpp>
-#include <string>
 //  This is our client task class.
 //  It connects to the server, and then sends a request once per second
 //  It collects responses as they arrive, and it prints them out. We will
@@ -25,11 +22,13 @@ class server_worker {
 public:
     server_worker(zmq::context_t &ctx, int sock_type)
             : ctx_(ctx),
-              worker_(ctx_, sock_type)
+              worker_(ctx_, sock_type),
+              pub_(ctx_,ZMQ_PUB)
     {}
 
     void work() {
         worker_.connect("inproc://backend");
+        pub_.bind("tcp://*:5571");
 
         try {
             while (true) {
@@ -37,25 +36,32 @@ public:
                 zmq::message_t msg;
                 zmq::message_t copied_id;
                 zmq::message_t copied_msg;
+                int counter = 0;
+            while(counter < 10000000){
+                cout<<"WAITING"<<endl;
                 worker_.recv(&identity);
                 worker_.recv(&msg);
+                struct Message *msg2 = (struct Message*)(msg.data());
+                std::cout << "PROC_TIME: "<<msg2->time<<" | RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
+                pub_.send(msg);
+            }
 
-                int replies = within(5);
+
+//                int replies = within(5);
+                int replies = 1;
                 for (int reply = 0; reply < replies; ++reply) {
                     s_sleep(within(1000) + 1);
                     copied_id.copy(&identity);
                     copied_msg.copy(&msg);
                     printf ("identity %d bytes: %s x\n", identity.size(), identity.data());
-                    std::cout << msg.data()<<endl;
-                    GenericMessage<int> *msg2 = (GenericMessage<int>*)(msg.data());
-                    std::cout << "RECEIVED: " << msg2->toString() << std::endl;
-
-                    /* *********************************  */
-                    /*  SEGMENTATION FAULT HAPPENS HERE   */
-                    /* The member "data" in class GenericMessage cannot be received while the  member "id" in the previous line can be received. */
-                    std::cout << "DATA: " << (msg2->getData())  << std::endl;
-                    //printf ("msg %d bytes: %s \n", msg.size(), msg.data());
-
+                    struct Message *msg2 = (struct Message*)(msg.data());
+                    std::cout << "PROC_TIME: "<<msg2->time<<"RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
+                    string sx(msg2->dataString);
+                    std::istringstream iss(sx);
+                    boost::archive::text_iarchive oa(iss);
+                    DataSerial ds = DataSerial(100);
+                    oa >> ds;
+                    ds.print();
                     worker_.send(copied_id, ZMQ_SNDMORE);
                     worker_.send(copied_msg);
                 }
@@ -63,10 +69,16 @@ public:
         }
         catch (std::exception &e) {}
     }
-
+    void printArray(int t[]) {
+        for(int i=0;i<100;i++) {
+            cout<<t[i]<<" ";
+        }
+        cout<<endl;
+    }
 private:
     zmq::context_t &ctx_;
     zmq::socket_t worker_;
+    zmq::socket_t pub_;
 };
 
 //  This is our server task.
@@ -84,12 +96,15 @@ public:
               proxycon_(ctx_,ZMQ_PUB)
     {}
 
-    enum { kMaxThread = 5 };
+    enum { kMaxThread = 1 };
 
     void run() {
         frontend_.bind("tcp://*:5570");
         backend_.bind("inproc://backend");
-        proxycon_.bind("tcp://*:5571");
+//        proxycon_.bind("tcp://*:5571");
+//        s_sendmore (proxycon_, "BROAD");
+
+        printf("SOCKETS INITIALIZED\n");
         vector<server_worker*> worker;
         vector<thread*> worker_thread;
         for (int i = 0; i < kMaxThread; ++i) {
@@ -103,6 +118,7 @@ public:
 
         try {
             zmq::proxy(frontend_, backend_, nullptr);
+//            zmq::proxy(frontend_,proxycon_, nullptr);
         }
         catch (exception &e) {}
 
