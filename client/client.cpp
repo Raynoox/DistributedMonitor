@@ -2,12 +2,12 @@
 // Created by root on 4/1/17.
 //
 
-#include "client.h"
+//#include "client.h"
 #include <thread>
 #include "monitor.h"
-#include <zmq.hpp>
-#include <zhelpers.hpp>
-#include <pthread.h>
+//#include <zmq.hpp>
+//#include <zhelpers.hpp>
+//#include <pthread.h>
 using namespace std;
 class client_task {
 public:
@@ -22,9 +22,25 @@ public:
         m.printMessage("COMPLETE");
         pthread_t t;
         m.printArray();
+        m.printQueue();
         pthread_create(&t, NULL, &Monitor::handle_message, &m);
-        sleep(1);
-        m.consume();
+        sleep(5);
+//        char ch;
+//        cout << "Press a key then press enter: "<<endl;;
+//        getchar();
+//        cout<<"try consume"<<endl;
+        int i = 10;
+        if(PID == 0 || PID == 1){
+            while(i > 0){
+                sleep(3);
+                m.consume();
+            }
+        } else {
+            while(i > 0){
+                sleep(1);
+                m.produce();
+            }
+        }
         sleep(100);
 
 

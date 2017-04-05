@@ -42,7 +42,10 @@ public:
                 worker_.recv(&identity);
                 worker_.recv(&msg);
                 struct Message *msg2 = (struct Message*)(msg.data());
-                std::cout << "PROC_TIME: "<<msg2->time<<" | RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
+                std::cout<<msg2->pid<<" | PROC_TIME: "<<msg2->time<<"RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
+                if(msg2->type == ACK) {
+                    std::cout<<"TO "<<msg2->destpid<<endl;
+                }
                 pub_.send(msg);
             }
 
@@ -55,7 +58,7 @@ public:
                     copied_msg.copy(&msg);
                     printf ("identity %d bytes: %s x\n", identity.size(), identity.data());
                     struct Message *msg2 = (struct Message*)(msg.data());
-                    std::cout << "PROC_TIME: "<<msg2->time<<"RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
+                    std::cout<<msg2->pid<<" | PROC_TIME: "<<msg2->time<<"RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
                     string sx(msg2->dataString);
                     std::istringstream iss(sx);
                     boost::archive::text_iarchive oa(iss);
