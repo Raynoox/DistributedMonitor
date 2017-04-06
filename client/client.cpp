@@ -5,6 +5,7 @@
 //#include "client.h"
 #include <thread>
 #include "monitor.h"
+#include "configuration.h"
 //#include <zmq.hpp>
 //#include <zhelpers.hpp>
 //#include <pthread.h>
@@ -13,31 +14,30 @@ class client_task {
 public:
     client_task(int pid)
             : ctx_(1),
-              client_socket_(ctx_, ZMQ_DEALER)
+              client_socket_(ctx_, ZMQ_DEALER),
+              conf()
     {PID = pid;}
 
     void start() {
         printf("MONITOR INITIALIZATION\n");
-        Monitor m = Monitor(ctx_,100,PID);
+        Monitor m = Monitor(ctx_,100,PID, conf.PROC_NUM);
         m.printMessage("COMPLETE");
         pthread_t t;
         m.printArray();
         m.printQueue();
         pthread_create(&t, NULL, &Monitor::handle_message, &m);
         sleep(5);
-//        char ch;
-//        cout << "Press a key then press enter: "<<endl;;
-//        getchar();
-//        cout<<"try consume"<<endl;
         int i = 10;
         if(PID == 0 || PID == 1){
             while(i > 0){
-                sleep(3);
+                usleep(100000+within(50000));
+//                sleep(3);
                 m.consume();
             }
         } else {
             while(i > 0){
-                sleep(1);
+                usleep(50000+within(25000));
+//                sleep(1);
                 m.produce();
             }
         }
@@ -71,6 +71,7 @@ public:
     }
 
 private:
+    Config conf;
     zmq::context_t ctx_;
     zmq::socket_t client_socket_;
     int PID;

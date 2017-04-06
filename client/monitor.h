@@ -148,7 +148,7 @@ class Monitor {
 public:
     Monitor() {
     };
-    Monitor (zmq::context_t &ctx, int arraySize, int procId)
+    Monitor (zmq::context_t &ctx, int arraySize, int procId, int procNum)
                      {
         pthread_mutex_init(&ack_mutex, NULL);
         pthread_mutex_init(&queue_mutex, NULL);
@@ -159,7 +159,7 @@ public:
         dataArray = new DataSerial(arraySize);
 //        dataArray->getValue()[0] = 1;
 //        dataArray->getValue()[1] = 1;
-        PROC_NUM = 3; //TODO to config
+        PROC_NUM = procNum; //TODO to config
         prodMod = 0;
         consMod = 0;
         ltime = 0;
@@ -305,8 +305,9 @@ public:
         //request for mutex
         sock_req_->send(prepare_empty(REQUEST,mutexId));
         printMessage("REQUEST SENT");
+        cout<<ltime<<" "<<PROC_NUM<<endl;
         //wait for ack
-//        printMessage("req mutex");
+//        printMessage("req mutex");request
         pthread_mutex_lock(&ack_mutex);
         ack = new int[PROC_NUM];
 //        printMessage("a2");
@@ -351,6 +352,7 @@ public:
 
         pthread_cond_wait(&wait_cond,&wait_mutex);
         pthread_mutex_unlock(&wait_mutex);
+        ltime--;
         //pthread_wait
 //        wait_for_queue(&queue_cond, &queue_mutex);
         //if got signal, wait for unlocks/signals till first in queue
@@ -369,8 +371,7 @@ public:
         pq.pop();
 //        cout<<"try release"<<endl;
         sock_req_->send(prepare_message(RELEASE,mutexId, -1));
-        cout<<"RELEASED"<<endl;
-
+        printMessage("RELEASED");
         //with mutexId, values
         //port 5570 request with value, consMod, prodMod, dont need to wait
     }
@@ -400,11 +401,12 @@ public:
 //            m->printMessage(msg);
             struct Message *msg2 = (struct Message*) msg.data();
 //            _this->printMessage(_this->simpleMessage(msg2));
-//            usleep(10000);
+//            usleep(100000);
 
             switch(msg2->type){
                 case ACK: {
                     if(msg2->destpid == _this->pid){
+                        cout<<"+"<<msg2->destpid<<endl;
                         pthread_mutex_lock(&(_this->ack_mutex));
                         (_this->ack)[msg2->pid] = 1;
                         //fil array

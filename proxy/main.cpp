@@ -8,6 +8,7 @@
 #include <vector>
 #include <thread>
 #include "../client/monitor.h"
+#include "../client/configuration.h"
 //  This is our client task class.
 //  It connects to the server, and then sends a request once per second
 //  It collects responses as they arrive, and it prints them out. We will
@@ -89,14 +90,16 @@ private:
 //  of workers and route replies back to clients. One worker can handle
 //  one request at a time but one client can talk to multiple workers at
 //  once.
-
 class server_task {
 public:
     server_task()
             : ctx_(1),
               frontend_(ctx_, ZMQ_ROUTER),
               backend_(ctx_, ZMQ_DEALER),
-              proxycon_(ctx_,ZMQ_PUB)
+              proxycon_(ctx_,ZMQ_PUB),
+              sub_(ctx_, ZMQ_XSUB),
+              pub_(ctx_, ZMQ_PUB),
+              conf()
     {}
 
     enum { kMaxThread = 1 };
@@ -104,11 +107,13 @@ public:
     void run() {
         frontend_.bind("tcp://*:5570");
         backend_.bind("inproc://backend");
-//        proxycon_.bind("tcp://*:5571");
+        pub_.bind("tcp://*:5571");
+
+//        proxycon_.bind("tcp://*:5571"); //tutaj moga subowac inne proxy
+
 //        s_sendmore (proxycon_, "BROAD");
 
-        printf("SOCKETS INITIALIZED\n");
-        vector<server_worker*> worker;
+       /* vector<server_worker*> worker;
         vector<thread*> worker_thread;
         for (int i = 0; i < kMaxThread; ++i) {
             //worker.push_back(new server_worker(ctx_, ZMQ_DEALER));
@@ -117,17 +122,71 @@ public:
             worker_thread.push_back(new std::thread(std::bind(&server_worker::work, worker.back())));
 
             worker_thread.back()->detach();
-        }
+        }*/
+        cout<<"print conf"<<endl;
 
-        try {
-            zmq::proxy(frontend_, backend_, nullptr);
+//        try {
+            for(std::list<string>::iterator list_iter = conf.addresses.begin();
+                list_iter != conf.addresses.end(); list_iter++)
+            {
+
+                std::ostringstream ss;
+                ss << PROTOCOL <<"://"<<*list_iter<<":"<<LOCAL_PUB_PORT;
+                cout<<ss.str()<<endl;
+                sub_.connect(ss.str());
+                cout<<"connected"<<endl;
+//                ss <<
+//                   sock_sub_.connect(LOCAL_PUB_URL);
+//                sock_sub_.setsockopt(ZMQ_SUBSCRIBE, "", 0);
+            }
+            zmq::pollitem_t items [] = {
+                    { sub_, 0, ZMQ_POLLIN, 0 },
+                    { frontend_, 0, ZMQ_POLLIN, 0 }
+            };
+            printf("SOCKETS INITIALIZED\n");
+            cout<<"waiting"<<endl;
+            while (1) {
+                zmq::message_t message;
+                zmq::message_t identity;
+                zmq::poll (&items[0], 2, -1);
+                cout<<items[0].revents<<endl;
+                cout<<ZMQ_POLLIN<<endl;
+                cout<<items[1].revents<<endl;
+                if (items[0].revents & ZMQ_POLLIN) {
+                    cout<<"SUB";
+                    sub_.recv(&message);
+                    struct Message *msg2 = (struct Message*)(message.data());
+                    process_message(msg2);
+                    pub_.send(message);
+
+                }
+                if (items[1].revents & ZMQ_POLLIN) {
+                    frontend_.recv(&identity);
+                    frontend_.recv(&message);
+                    struct Message *msg2 = (struct Message*)(message.data());
+                    process_message(msg2);
+                    pub_.send(message);
+                }
+            }
+//            zmq::proxy(frontend_, backend_, nullptr);
+
+
 //            zmq::proxy(frontend_,proxycon_, nullptr);
-        }
-        catch (exception &e) {}
+//        }
+//        catch (exception &e) {}
 
-        for (int i = 0; i < kMaxThread; ++i) {
+//        for (int i = 0; i < kMaxThread; ++i) {
             //delete worker.at(i);
             //delete worker_thread.at(i);
+//        }
+    }
+    void process_message(Message *msg2){
+        cout<<msg2->pid<<endl;
+        cout<<msg2->time<<endl;
+        cout<<msg2->type<<endl;
+        std::cout<<msg2->pid<<" | PROC_TIME: "<<msg2->time<<"RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
+        if(msg2->type == ACK) {
+            std::cout<<"TO "<<msg2->destpid<<endl;
         }
     }
 
@@ -136,11 +195,14 @@ private:
     zmq::socket_t frontend_;
     zmq::socket_t backend_;
     zmq::socket_t proxycon_;
+    zmq::socket_t pub_;
+    zmq::socket_t sub_;
+
+    Config conf;
 };
 
 //  The main thread simply starts several clients and a server, and then
 //  waits for the server to finish.
-
 int main (void)
 {
     server_task st;
