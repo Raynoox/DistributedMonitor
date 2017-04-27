@@ -5,9 +5,10 @@
 #include <string>
 #include <iostream>
 #include <queue>
+#include <list>
 #include <utility>
-#include <zmq.hpp>
-#include <zhelpers.hpp>
+#include "../zmq.hpp"
+#include "../zhelpers.hpp"
 #include <pthread.h>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
