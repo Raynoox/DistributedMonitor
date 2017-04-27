@@ -8,6 +8,9 @@
 #include<string>
 #include <sstream>
 #include <iostream>
+
+#define ARRAY_SIZE 100
+
 class Config {
 
 public:

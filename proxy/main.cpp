@@ -38,7 +38,7 @@ public:
                 zmq::message_t copied_id;
                 zmq::message_t copied_msg;
                 int counter = 0;
-            while(counter < 10000000){
+            while(counter < 10000000) {
                 cout<<"WAITING"<<endl;
                 worker_.recv(&identity);
                 worker_.recv(&msg);
