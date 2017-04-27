@@ -9,6 +9,7 @@ public:
     Producer(zmq::context_t &ctx, int arraySize, int procId, int procNum)
             : Monitor( ctx, arraySize, procId, procNum){}
     void produce() {
+        cout<<"p"<<endl;
         lock(1);
         printArray();
         cout<<"CHECK DATA -> modulo = "<<prodMod<<endl;

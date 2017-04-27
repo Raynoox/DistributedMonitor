@@ -136,6 +136,7 @@ class CompareQueue
 {
 public:
     bool operator()(pair<int,int> n1,pair<int,int> n2) {
+        cout<<n1.second<<" "<<n2.second<<" "<<n1.first<<" "<<n1.second;
         return n1.second == n2.second ? n1.first > n2.first : n1.second > n2.second;
         //second -> time; first -> pid
     }
@@ -153,6 +154,7 @@ public:
         pthread_mutex_init(&ack_mutex, NULL);
         pthread_mutex_init(&queue_mutex, NULL);
         pthread_mutex_init(&wait_mutex, NULL);
+        pthread_mutex_init(&send_mutex,NULL);
         ctx_ = &ctx;
         sock_req_ = new zmq::socket_t(*ctx_, ZMQ_DEALER);
         dataArray = new DataSerial(arraySize);
@@ -235,12 +237,16 @@ public:
         cout<<endl;
     }
     void lock(int mutexId) {
-        sock_req_->send(prepare_empty(REQUEST,mutexId));
-        printMessage("REQUEST SENT");
-        cout<<ltime<<" "<<PROC_NUM<<endl;
+        cout<<"lock()"<<endl;
         pthread_mutex_lock(&ack_mutex);
         ack = new int[PROC_NUM];
         memset(ack, 0, PROC_NUM*sizeof(*ack)); //zero ack table
+        cout<<"beforesend"<<endl;
+        pthread_mutex_lock(&send_mutex);
+        sock_req_->send(prepare_empty(REQUEST,mutexId));
+        pthread_mutex_unlock(&send_mutex);
+        printMessage("REQUEST SENT");
+        cout<<ltime<<" "<<PROC_NUM<<endl;
         while(!isWaiting()) {
             pthread_cond_wait(&ack_cond, &ack_mutex);
         }
@@ -265,12 +271,16 @@ public:
         lock(mutexId);
     }
     void signal(int condId) {
+        pthread_mutex_lock(&send_mutex);
         sock_req_->send(prepare_message(SIGNAL,-1,condId));
+        pthread_mutex_unlock(&send_mutex);
         printMessage("SIGNALED");
     }
     void unlock(int mutexId) {
         pq.pop();
+        pthread_mutex_lock(&send_mutex);
         sock_req_->send(prepare_message(RELEASE,mutexId, -1));
+        pthread_mutex_unlock(&send_mutex);
         printMessage("RELEASED");
     }
     static void* handle_message(void* m) {
@@ -282,13 +292,17 @@ public:
             zmq::message_t msg;
 
             sock_sub_.recv(&msg);
+            cout<<"recv"<<endl;
             struct Message *msg2 = (struct Message*) msg.data();
-
+            cout<<"type "<< msg2->type<<endl;
             switch(msg2->type){
                 case ACK: {
+                    cout<<"dest "<<msg2->destpid<<endl;
                     if(msg2->destpid == _this->pid){
-                        cout<<"+"<<msg2->pid<<endl;
+                        _this->printQueue();
+                        cout<<"+"<<msg2->pid;
                         pthread_mutex_lock(&(_this->ack_mutex));
+                        cout<<"++"<<endl;
                         (_this->ack)[msg2->pid] = 1;
                         pthread_cond_signal(&(_this->ack_cond));
                         pthread_mutex_unlock(&(_this->ack_mutex));
@@ -297,8 +311,13 @@ public:
                 }
                 case REQUEST:{
                     pair<int,int> temp = make_pair(msg2->pid,msg2->time);
+                    pthread_mutex_lock(&(_this->queue_mutex));
                     pq.push(temp);
+                    pthread_mutex_unlock(&(_this->queue_mutex));
+                    cout<<"sen";
+                    pthread_mutex_lock(&(_this->send_mutex));
                     sock_req_->send(_this->prepare_ack(msg2->mutexId,msg2->pid));
+                    pthread_mutex_unlock(&(_this->send_mutex));
                     break;
                 }
                 case RELEASE: {
@@ -356,12 +375,14 @@ public:
     }
     void printQueue() {
         cout<<"QUEUE"<<endl;
+        pthread_mutex_lock(&queue_mutex);
         if(!pq.empty()) {
             pair<int,int> r = pq.top();
             cout<<"PID "<<r.first<<" | time "<<r.second<<endl;
         } else {
             cout<<"QUEUE EMPTY"<<endl;
         }
+        pthread_mutex_unlock(&queue_mutex);
     }
 protected:
     int *value;
@@ -380,6 +401,7 @@ protected:
     pthread_cond_t wait_cond = PTHREAD_COND_INITIALIZER;
     pthread_mutex_t queue_mutex;
     pthread_cond_t queue_cond = PTHREAD_COND_INITIALIZER;
+    pthread_mutex_t send_mutex;
     zmq::context_t *ctx_;
 
     bool isWaiting() {

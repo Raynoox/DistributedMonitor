@@ -26,7 +26,7 @@ public:
             pthread_create(&t, NULL, &Monitor::handle_message, &c);
             sleep(5);
             while(true) {
-                usleep(150000);
+                usleep(1000);
                 c.consume();
             }
         } else if (type.compare("P") == 0) {
@@ -37,7 +37,7 @@ public:
             pthread_create(&t, NULL, &Monitor::handle_message, &p);
             sleep(5);
             while(true) {
-                usleep(100000);
+                usleep(1000);
                 p.produce();
             }
         } else {

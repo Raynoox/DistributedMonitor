@@ -149,9 +149,9 @@ public:
                 zmq::message_t message;
                 zmq::message_t identity;
                 zmq::poll (&items[0], 2, -1);
-                cout<<items[0].revents<<endl;
-                cout<<ZMQ_POLLIN<<endl;
-                cout<<items[1].revents<<endl;
+                //cout<<items[0].revents<<endl;
+                //cout<<ZMQ_POLLIN<<endl;
+                //cout<<items[1].revents<<endl;
                 if (items[0].revents & ZMQ_POLLIN) {
                     cout<<"SUB";
                     sub_.recv(&message);
@@ -181,10 +181,7 @@ public:
 //        }
     }
     void process_message(Message *msg2){
-        cout<<msg2->pid<<endl;
-        cout<<msg2->time<<endl;
-        cout<<msg2->type<<endl;
-        std::cout<<msg2->pid<<" | PROC_TIME: "<<msg2->time<<"RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
+        std::cout<<msg2->pid<<" | PROC_TIME: "<<msg2->time<<" RECEIVED: " << MSG_TStrings[msg2->type] << std::endl;
         if(msg2->type == ACK) {
             std::cout<<"TO "<<msg2->destpid<<endl;
         }
