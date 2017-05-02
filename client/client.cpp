@@ -24,9 +24,10 @@ public:
             c.printMessage("COMPLETE");
             pthread_t t;
             pthread_create(&t, NULL, &Monitor::handle_message, &c);
-            sleep(5);
+            cout<<"PROCESS IS HANDLING MESSAGES"<<endl<<"PRESS <ENTER> TO START WORK"<<endl;
+            getchar();
             while(true) {
-                usleep(1000);
+                sleep(1);
                 c.consume();
             }
         } else if (type.compare("P") == 0) {
@@ -35,9 +36,10 @@ public:
             p.printMessage("COMPLETE");
             pthread_t t;
             pthread_create(&t, NULL, &Monitor::handle_message, &p);
-            sleep(5);
+            cout<<"PROCESS IS HANDLING MESSAGES"<<endl<<"PRESS <ENTER> TO START WORK"<<endl;
+            getchar();
             while(true) {
-                usleep(1000);
+                sleep(1);
                 p.produce();
             }
         } else {
@@ -61,10 +63,10 @@ int main (int argc, char** argv)
     string str(argv[2], argv[2] + 1);
     cout<<str<<endl;
     client_task ct1(atoi(argv[1]),str);
+    ct1.start();
+    //thread t1(bind(&client_task::start, &ct1));
 
-    thread t1(bind(&client_task::start, &ct1));
-
-    t1.detach();
+    //t1.detach();
     getchar();
     return 0;
 }

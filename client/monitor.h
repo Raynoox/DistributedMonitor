@@ -39,6 +39,7 @@ struct Message {
     int time;
     int prodMod;
     int consMod;
+    int stop_propagate = 0;
     MSG_T type;
     int mutexId;
     int condId;

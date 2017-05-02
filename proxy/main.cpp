@@ -97,7 +97,7 @@ public:
               frontend_(ctx_, ZMQ_ROUTER),
               backend_(ctx_, ZMQ_DEALER),
               proxycon_(ctx_,ZMQ_PUB),
-              sub_(ctx_, ZMQ_XSUB),
+              sub_(ctx_, ZMQ_SUB),
               pub_(ctx_, ZMQ_PUB),
               conf()
     {}
@@ -123,6 +123,7 @@ public:
 
             worker_thread.back()->detach();
         }*/
+
         cout<<"print conf"<<endl;
 
 //        try {
@@ -134,11 +135,17 @@ public:
                 ss << PROTOCOL <<"://"<<*list_iter<<":"<<LOCAL_PUB_PORT;
                 cout<<ss.str()<<endl;
                 sub_.connect(ss.str());
+                sub_.setsockopt(ZMQ_SUBSCRIBE, "", 0);
                 cout<<"connected"<<endl;
 //                ss <<
 //                   sock_sub_.connect(LOCAL_PUB_URL);
 //                sock_sub_.setsockopt(ZMQ_SUBSCRIBE, "", 0);
             }
+//            char identity[10] = {};
+//            sprintf(identity, "%04X-%04X", within(0x10000), within(0x10000));
+//            printf("%s\n", identity);
+//            pub_.setsockopt(ZMQ_IDENTITY, identity, strlen(identity));
+//            zmq::proxy(sub_, pub_, nullptr);
             zmq::pollitem_t items [] = {
                     { sub_, 0, ZMQ_POLLIN, 0 },
                     { frontend_, 0, ZMQ_POLLIN, 0 }
@@ -149,6 +156,7 @@ public:
                 zmq::message_t message;
                 zmq::message_t identity;
                 zmq::poll (&items[0], 2, -1);
+                cout<<"recived"<<endl;
                 //cout<<items[0].revents<<endl;
                 //cout<<ZMQ_POLLIN<<endl;
                 //cout<<items[1].revents<<endl;
@@ -156,8 +164,13 @@ public:
                     cout<<"SUB";
                     sub_.recv(&message);
                     struct Message *msg2 = (struct Message*)(message.data());
-                    process_message(msg2);
-                    pub_.send(message);
+                    if(msg2->stop_propagate == 0) {
+                        msg2->stop_propagate = 1;
+                        process_message(msg2);
+                        pub_.send(message);
+                    } else {
+                        cout<<"recived trash";
+                    }
 
                 }
                 if (items[1].revents & ZMQ_POLLIN) {
