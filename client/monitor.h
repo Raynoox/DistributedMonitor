@@ -71,6 +71,13 @@ public:
         size = n;
         value = new int[n]();
     }
+    DataSerial(int n, int init_values) {
+        size = n;
+        value = new int[n]();
+        for(int i =0;i<n;i++) {
+            value[i] = init_values;
+        }
+    }
     void setArray(int v[]) {
         value = v;
     }
@@ -137,7 +144,7 @@ class CompareQueue
 {
 public:
     bool operator()(pair<int,int> n1,pair<int,int> n2) {
-        cout<<n1.second<<" "<<n2.second<<" "<<n1.first<<" "<<n1.second;
+//        cout<<n1.second<<" "<<n2.second<<" "<<n1.first<<" "<<n2.first;
         return n1.second == n2.second ? n1.first > n2.first : n1.second > n2.second;
         //second -> time; first -> pid
     }
@@ -150,7 +157,7 @@ class Monitor {
 public:
     Monitor() {
     };
-    Monitor (zmq::context_t &ctx, int arraySize, int procId, int procNum)
+    Monitor (zmq::context_t &ctx, int arraySize, int procId, int procNum, int init_values)
                      {
         pthread_mutex_init(&ack_mutex, NULL);
         pthread_mutex_init(&queue_mutex, NULL);
@@ -158,8 +165,9 @@ public:
         pthread_mutex_init(&send_mutex,NULL);
         ctx_ = &ctx;
         sock_req_ = new zmq::socket_t(*ctx_, ZMQ_DEALER);
-        dataArray = new DataSerial(arraySize);
-        PROC_NUM = procNum; //TODO to config
+         dataArray = new DataSerial(arraySize);
+        dataArray = init_values != 0 ? new DataSerial(arraySize, init_values) : new DataSerial(arraySize);
+         PROC_NUM = procNum; //TODO to config
         prodMod = 0;
         consMod = 0;
         ltime = 0;
@@ -247,7 +255,7 @@ public:
         sock_req_->send(prepare_empty(REQUEST,mutexId));
         pthread_mutex_unlock(&send_mutex);
         printMessage("REQUEST SENT");
-        cout<<ltime<<" "<<PROC_NUM<<endl;
+        cout<<"REQUEST PARAMS: time->"<<ltime-1<<" proc_num->"<<PROC_NUM<<endl;
         while(!isWaiting()) {
             pthread_cond_wait(&ack_cond, &ack_mutex);
         }
@@ -293,17 +301,17 @@ public:
             zmq::message_t msg;
 
             sock_sub_.recv(&msg);
-            cout<<"recv"<<endl;
+//            cout<<"recv"<<endl;
             struct Message *msg2 = (struct Message*) msg.data();
-            cout<<"type "<< msg2->type<<endl;
+//            cout<<"type "<< msg2->type<<endl;
             switch(msg2->type){
                 case ACK: {
-                    cout<<"dest "<<msg2->destpid<<endl;
+//                    cout<<"dest "<<msg2->destpid<<endl;
                     if(msg2->destpid == _this->pid){
-                        _this->printQueue();
-                        cout<<"+"<<msg2->pid;
+//                        _this->printQueue();
+//                        cout<<"+"<<msg2->pid;
                         pthread_mutex_lock(&(_this->ack_mutex));
-                        cout<<"++"<<endl;
+//                        cout<<"++"<<endl;
                         (_this->ack)[msg2->pid] = 1;
                         pthread_cond_signal(&(_this->ack_cond));
                         pthread_mutex_unlock(&(_this->ack_mutex));
@@ -315,8 +323,9 @@ public:
                     pthread_mutex_lock(&(_this->queue_mutex));
                     pq.push(temp);
                     pthread_mutex_unlock(&(_this->queue_mutex));
-                    cout<<"sen";
+//                    cout<<"sen";
                     pthread_mutex_lock(&(_this->send_mutex));
+                    _this->ltime = max(msg2->time+1, _this->ltime);
                     sock_req_->send(_this->prepare_ack(msg2->mutexId,msg2->pid));
                     pthread_mutex_unlock(&(_this->send_mutex));
                     break;
@@ -328,12 +337,13 @@ public:
                         string sx(msg2->dataString);
                         std::istringstream iss(sx);
                         boost::archive::text_iarchive oa(iss);
-                        DataSerial ds = DataSerial(100);
+                        DataSerial ds = DataSerial(_this->size);
                         oa >> ds;
                         _this->dataArray = &ds;
                         _this->ltime = max(msg2->time+1, _this->ltime);
                         _this->prodMod = msg2->prodMod;
                         _this->consMod = msg2->consMod;
+                        cout<<msg2->pid<<" released - ";
                         _this->printArray();
                         pthread_mutex_unlock(&(_this->queue_mutex));
                         pthread_cond_signal(&(_this->queue_cond));

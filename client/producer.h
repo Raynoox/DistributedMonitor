@@ -7,7 +7,7 @@
 class Producer : public Monitor {
 public:
     Producer(zmq::context_t &ctx, int arraySize, int procId, int procNum)
-            : Monitor( ctx, arraySize, procId, procNum){}
+            : Monitor( ctx, arraySize, procId, procNum, 0){}
     void produce() {
         cout<<"p"<<endl;
         lock(1);

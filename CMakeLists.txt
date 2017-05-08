@@ -16,3 +16,6 @@ add_executable(DistributedMonitor ${SOURCE_FILES})
 
 set(SOURCE_FILES client/client.cpp client/client.h)
 add_executable(Client ${SOURCE_FILES})
+
+set(SOURCE_FILES client/philosopher.cpp client/philosopher.h)
+add_executable(Philo ${SOURCE_FILES})

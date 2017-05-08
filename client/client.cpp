@@ -27,7 +27,7 @@ public:
             cout<<"PROCESS IS HANDLING MESSAGES"<<endl<<"PRESS <ENTER> TO START WORK"<<endl;
             getchar();
             while(true) {
-                sleep(1);
+               // sleep(1);
                 c.consume();
             }
         } else if (type.compare("P") == 0) {
@@ -39,7 +39,7 @@ public:
             cout<<"PROCESS IS HANDLING MESSAGES"<<endl<<"PRESS <ENTER> TO START WORK"<<endl;
             getchar();
             while(true) {
-                sleep(1);
+             //   sleep(1);
                 p.produce();
             }
         } else {

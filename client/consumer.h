@@ -8,7 +8,7 @@
 class Consumer : public Monitor {
 public:
     Consumer(zmq::context_t &ctx, int arraySize, int procId, int procNum)
-            : Monitor(ctx, arraySize, procId, procNum) {}
+            : Monitor(ctx, arraySize, procId, procNum, 0) {}
 
     void consume() {
         printMessage("trylock");
