@@ -9,7 +9,7 @@
 #include <sstream>
 #include <iostream>
 
-#define ARRAY_SIZE 100
+#define ARRAY_SIZE 10
 
 class Config {
 

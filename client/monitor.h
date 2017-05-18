@@ -35,6 +35,7 @@ static const char * MSG_TStrings[] = { "ACK", "REQUEST", "RELEASE", "SIGNAL" };
 
 struct Message {
     int pid;
+    int monitorId;
     int destpid;
     int time;
     int prodMod;
@@ -157,7 +158,7 @@ class Monitor {
 public:
     Monitor() {
     };
-    Monitor (zmq::context_t &ctx, int arraySize, int procId, int procNum, int init_values)
+    Monitor (zmq::context_t &ctx, int arraySize, int procId, int procNum, int init_values, int mon_id)
                      {
         pthread_mutex_init(&ack_mutex, NULL);
         pthread_mutex_init(&queue_mutex, NULL);
@@ -165,14 +166,16 @@ public:
         pthread_mutex_init(&send_mutex,NULL);
         ctx_ = &ctx;
         sock_req_ = new zmq::socket_t(*ctx_, ZMQ_DEALER);
-         dataArray = new DataSerial(arraySize);
+        dataArray = new DataSerial(arraySize);
         dataArray = init_values != 0 ? new DataSerial(arraySize, init_values) : new DataSerial(arraySize);
-         PROC_NUM = procNum; //TODO to config
+        PROC_NUM = procNum; //TODO to config?
         prodMod = 0;
         consMod = 0;
         ltime = 0;
         pid = procId;
         size = arraySize;
+        monitorId = mon_id;
+        signal_waiting_index = -1;
         printMessage("VALUES INITIALIZED");
         sock_req_->connect(LOCAL_REQUEST_URL);
         printMessage("SOCKETS INITIALIZED");
@@ -188,21 +191,23 @@ public:
         GenericMessage<pair<int,int>> message = GenericMessage<pair<int,int>>(pid, MSG_TYPE, p);
         return message;
     }
-    zmq::message_t prepare_empty(MSG_T TYPE,int mutexId){
+    zmq::message_t prepare_empty(MSG_T TYPE,int mutexId){ //for lock
         struct Message m;
         m.pid=pid;
+        m.monitorId=monitorId;
         m.consMod = consMod;
         m.prodMod = prodMod;
         m.type = TYPE;
         m.mutexId = mutexId;
-        m.time = ltime++; //++?
+        m.time = ltime++;
         zmq::message_t msg (sizeof(struct Message));
         memcpy (msg.data (), &m, (sizeof(struct Message)));
         return msg;
     }
-    zmq::message_t prepare_ack(int mutexId, int destination) {
+    zmq::message_t prepare_ack(int mutexId, int destination) { //for ack message
         struct Message m;
         m.pid=pid;
+        m.monitorId=monitorId;
         m.consMod = consMod;
         m.prodMod = prodMod;
         m.type = ACK;
@@ -213,15 +218,16 @@ public:
         memcpy (msg.data (), &m, (sizeof(struct Message)));
         return msg;
     }
-    zmq::message_t prepare_message(MSG_T TYPE, int mutexId, int condId) {
+    zmq::message_t prepare_message(MSG_T TYPE, int mutexId, int condId) { //message with Data (signal, release)
         struct Message m;
         m.pid = pid;
+        m.monitorId=monitorId;
         m.consMod = consMod;
         m.prodMod = prodMod;
         m.type = TYPE;
         m.mutexId = mutexId;
         m.condId = condId;
-        m.time = ltime++; //++?
+        m.time = ltime++;
         ostringstream oss;
         boost::archive::text_oarchive oa(oss);
         oa << *dataArray;
@@ -246,11 +252,9 @@ public:
         cout<<endl;
     }
     void lock(int mutexId) {
-        cout<<"lock()"<<endl;
         pthread_mutex_lock(&ack_mutex);
         ack = new int[PROC_NUM];
         memset(ack, 0, PROC_NUM*sizeof(*ack)); //zero ack table
-        cout<<"beforesend"<<endl;
         pthread_mutex_lock(&send_mutex);
         sock_req_->send(prepare_empty(REQUEST,mutexId));
         pthread_mutex_unlock(&send_mutex);
@@ -273,8 +277,11 @@ public:
     void wait(int condId, int mutexId) {
         unlock(mutexId);
         pthread_mutex_lock(&wait_mutex);
-
+        signal_waiting_index = condId;
+        printMessage("WAITING");
         pthread_cond_wait(&wait_cond,&wait_mutex);
+        printMessage("GOT SIGNAL");
+        signal_waiting_index = -1;
         pthread_mutex_unlock(&wait_mutex);
         ltime--;
         lock(mutexId);
@@ -295,72 +302,74 @@ public:
     static void* handle_message(void* m) {
         Monitor* _this = ((Monitor*)m);
         zmq::socket_t sock_sub_ (*((Monitor*)m)->ctx_, ZMQ_SUB);
+
         sock_sub_.connect(LOCAL_PUB_URL);
+
         sock_sub_.setsockopt(ZMQ_SUBSCRIBE, "", 0);
+        cout<<"monitor listening"<<endl;
         while (true){
             zmq::message_t msg;
-
             sock_sub_.recv(&msg);
-//            cout<<"recv"<<endl;
             struct Message *msg2 = (struct Message*) msg.data();
-//            cout<<"type "<< msg2->type<<endl;
-            switch(msg2->type){
-                case ACK: {
-//                    cout<<"dest "<<msg2->destpid<<endl;
-                    if(msg2->destpid == _this->pid){
-//                        _this->printQueue();
-//                        cout<<"+"<<msg2->pid;
-                        pthread_mutex_lock(&(_this->ack_mutex));
-//                        cout<<"++"<<endl;
-                        (_this->ack)[msg2->pid] = 1;
-                        pthread_cond_signal(&(_this->ack_cond));
-                        pthread_mutex_unlock(&(_this->ack_mutex));
+            if(msg2->monitorId == _this->monitorId){
+                switch(msg2->type){
+                    case ACK: {
+    //                    cout<<"dest "<<msg2->destpid<<endl;
+                        if(msg2->destpid == _this->pid){
+    //                        _this->printQueue();
+    //                        cout<<"+"<<msg2->pid;
+                            pthread_mutex_lock(&(_this->ack_mutex));
+    //                        cout<<"++"<<endl;
+                            (_this->ack)[msg2->pid] = 1;
+                            pthread_cond_signal(&(_this->ack_cond));
+                            pthread_mutex_unlock(&(_this->ack_mutex));
+                        }
+                        break;
                     }
-                    break;
-                }
-                case REQUEST:{
-                    pair<int,int> temp = make_pair(msg2->pid,msg2->time);
-                    pthread_mutex_lock(&(_this->queue_mutex));
-                    pq.push(temp);
-                    pthread_mutex_unlock(&(_this->queue_mutex));
-//                    cout<<"sen";
-                    pthread_mutex_lock(&(_this->send_mutex));
-                    _this->ltime = max(msg2->time+1, _this->ltime);
-                    sock_req_->send(_this->prepare_ack(msg2->mutexId,msg2->pid));
-                    pthread_mutex_unlock(&(_this->send_mutex));
-                    break;
-                }
-                case RELEASE: {
-                    if(_this->pid != msg2->pid){
+                    case REQUEST:{
+                        pair<int,int> temp = make_pair(msg2->pid,msg2->time);
                         pthread_mutex_lock(&(_this->queue_mutex));
-                        pq.pop();
-                        string sx(msg2->dataString);
-                        std::istringstream iss(sx);
-                        boost::archive::text_iarchive oa(iss);
-                        DataSerial ds = DataSerial(_this->size);
-                        oa >> ds;
-                        _this->dataArray = &ds;
-                        _this->ltime = max(msg2->time+1, _this->ltime);
-                        _this->prodMod = msg2->prodMod;
-                        _this->consMod = msg2->consMod;
-                        cout<<msg2->pid<<" released - ";
-                        _this->printArray();
+                        pq.push(temp);
                         pthread_mutex_unlock(&(_this->queue_mutex));
-                        pthread_cond_signal(&(_this->queue_cond));
+    //                    cout<<"sen";
+                        pthread_mutex_lock(&(_this->send_mutex));
+                        _this->ltime = max(msg2->time+1, _this->ltime);
+                        sock_req_->send(_this->prepare_ack(msg2->mutexId,msg2->pid));
+                        pthread_mutex_unlock(&(_this->send_mutex));
+                        break;
                     }
-                    break;
-                }
-                case SIGNAL: {
-                    if(_this->pid != msg2->pid){
-                        pthread_cond_signal(&(_this->wait_cond)); //TODO check if waiting/ diff between consumer/producer (between conds)
+                    case RELEASE: {
+                        if(_this->pid != msg2->pid){
+                            pthread_mutex_lock(&(_this->queue_mutex));
+                            pq.pop();
+                            string sx(msg2->dataString);
+                            std::istringstream iss(sx);
+                            boost::archive::text_iarchive oa(iss);
+                            DataSerial ds = DataSerial(_this->size);
+                            oa >> ds;
+                            _this->dataArray = &ds;
+                            _this->ltime = max(msg2->time+1, _this->ltime);
+                            _this->prodMod = msg2->prodMod;
+                            _this->consMod = msg2->consMod;
+                            cout<<msg2->pid<<" released - ";
+                            _this->printArray();
+                            pthread_mutex_unlock(&(_this->queue_mutex));
+                            pthread_cond_signal(&(_this->queue_cond));
+                        }
+                        break;
                     }
-                    break;
+                    case SIGNAL: {
+                        if(_this->pid != msg2->pid && msg2->condId == _this->signal_waiting_index){
+                            pthread_cond_signal(&(_this->wait_cond)); //TODO check if waiting/ diff between consumer/producer (between conds)
+                        }
+                        break;
+                    }
+                    default:
+                        stringstream ss;
+                        ss << "UNIDENTIFIED MSG TYPE -> " <<msg2->type<< " <-";
+                        _this->printMessage(ss.str());
+                        break;
                 }
-                default:
-                    stringstream ss;
-                    ss << "UNIDENTIFIED MSG TYPE -> " <<msg2->type<< " <-";
-                    _this->printMessage(ss.str());
-                    break;
             }
         }
     }
@@ -396,6 +405,7 @@ public:
         pthread_mutex_unlock(&queue_mutex);
     }
 protected:
+    int monitorId;
     int *value;
     DataSerial *dataArray;
     int *ack;
@@ -405,7 +415,7 @@ protected:
     int size;
     int prodMod;
     int consMod;
-
+    int signal_waiting_index;
     pthread_mutex_t ack_mutex;
     pthread_cond_t ack_cond = PTHREAD_COND_INITIALIZER;
     pthread_mutex_t wait_mutex;

@@ -1,7 +1,8 @@
 #include <thread>
-#include "consumer.h"
 #include "producer.h"
+#include "consumer.h"
 #include "configuration.h"
+
 #include <string>
 
 
@@ -18,29 +19,33 @@ public:
     void start() {
 
         int i = 10;
+        const int BUFFER_NUMBER = 1;//id of buffer to monitor
+        Spinbuf buffer = Spinbuf(ctx_, ARRAY_SIZE, PID, conf.PROC_NUM, BUFFER_NUMBER);
         if(type.compare("C") == 0) {
             printf("CONSUMER INITIALIZATION\n");
-            Consumer c = Consumer(ctx_,ARRAY_SIZE,PID, conf.PROC_NUM);
-            c.printMessage("COMPLETE");
+            Consumer c = Consumer(ctx_,ARRAY_SIZE,PID, conf.PROC_NUM,buffer);
+           // c.printMessage("COMPLETE");
             pthread_t t;
-            pthread_create(&t, NULL, &Monitor::handle_message, &c);
+            pthread_create(&t, NULL, &Monitor::handle_message, c.getSpinbuf());
             cout<<"PROCESS IS HANDLING MESSAGES"<<endl<<"PRESS <ENTER> TO START WORK"<<endl;
             getchar();
+            int pos = 0;
             while(true) {
                // sleep(1);
-                c.consume();
+                c.consume((pos++)%ARRAY_SIZE);
             }
         } else if (type.compare("P") == 0) {
             printf("PRODUCER INITIALIZATION\n");
-            Producer p = Producer(ctx_,ARRAY_SIZE,PID, conf.PROC_NUM);
-            p.printMessage("COMPLETE");
+            Producer p = Producer(ctx_,ARRAY_SIZE,PID, conf.PROC_NUM,buffer);
+           // p.printMessage("COMPLETE");
             pthread_t t;
-            pthread_create(&t, NULL, &Monitor::handle_message, &p);
+            pthread_create(&t, NULL, &Monitor::handle_message, p.getSpinbuf());
             cout<<"PROCESS IS HANDLING MESSAGES"<<endl<<"PRESS <ENTER> TO START WORK"<<endl;
             getchar();
+            int pos = 0;
             while(true) {
              //   sleep(1);
-                p.produce();
+                p.produce((pos++)%ARRAY_SIZE, 15);
             }
         } else {
             cout<<"Wrong type! -> "<<type<<endl;

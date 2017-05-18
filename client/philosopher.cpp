@@ -17,10 +17,15 @@ public:
     void start() {
 
         int i = 10;
-        Philosopher phi = Philosopher(ctx_,conf.PROC_NUM,PID,conf.PROC_NUM);
+        const int BUFFER_NUMBER = 1;
+        Philosopher phi = Philosopher(ctx_, conf.PROC_NUM, PID, conf.PROC_NUM, Table(ctx_, conf.PROC_NUM, PID, conf.PROC_NUM, BUFFER_NUMBER));
+        cout<<"x"<<endl;
+
         pthread_t t;
-        pthread_create(&t, NULL, &Monitor::handle_message, &phi);
+        pthread_create(&t, NULL, &Monitor::handle_message, phi.getTable());
+        cout<<"y"<<endl;
         getchar();
+        cout<<"z"<<endl;
         while(true) {
             phi.eat();
         }

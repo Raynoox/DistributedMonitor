@@ -1,27 +1,24 @@
 //
-// Created by root on 4/13/17.
+// Created by root on 5/18/17.
 //
-#include "monitor.h"
+#include "spinbuf.h"
+
 #ifndef DISTRIBUTEDMONITOR_PRODUCER_H
 #define DISTRIBUTEDMONITOR_PRODUCER_H
-class Producer : public Monitor {
+class Producer {
 public:
-    Producer(zmq::context_t &ctx, int arraySize, int procId, int procNum)
-            : Monitor( ctx, arraySize, procId, procNum, 0){}
-    void produce() {
-        cout<<"p"<<endl;
-        lock(1);
-        printArray();
-        cout<<"CHECK DATA -> modulo = "<<prodMod<<endl;
-        while(!(dataArray->getValue()[prodMod%size] == 0)) {
-            wait(1,1);
-        }
-        dataArray->getValue()[prodMod%size] = 1;
-        printf("%d PRODUCING VALUE AT %d\n",pid, prodMod % size);
-        prodMod++;
-        signal(2);
-        unlock(1);
+    Producer(zmq::context_t &ctx, int arraySize, int procId, int procNum, Spinbuf spinbuf) : spinbuf(spinbuf) {
+        cout<<"Process number - "<<procId<<" No. of processes - "<<procNum<<endl;
+        proc_id = procId;
     }
-
+    void produce(int position, int value) {
+        spinbuf.putInto(position, value);
+    }
+    void* getSpinbuf() {
+        return &spinbuf;
+    }
+private:
+    int proc_id;
+    Spinbuf spinbuf;
 };
 #endif //DISTRIBUTEDMONITOR_PRODUCER_H
