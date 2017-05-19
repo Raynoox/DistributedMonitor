@@ -19,7 +19,7 @@ public:
     void eat() {
         table.pickForks(proc_id);
         cout<<"EATING"<<endl;
-        sleep(5);
+        sleep(1);
         table.releaseForks(proc_id);
         cout<<"END"<<endl;
     }
