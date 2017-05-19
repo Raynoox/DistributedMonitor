@@ -14,7 +14,7 @@ SET(GCC_COVERAGE_LINK_FLAGS    "-lzmq -lpthread -lboost_serialization")
 SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}" )
 add_executable(DistributedMonitor ${SOURCE_FILES})
 
-set(SOURCE_FILES client/client.cpp client/client.h)
+set(SOURCE_FILES client/client.cpp client/client.h client/consumer.h client/producer.h client/spinbuf.h)
 add_executable(Client ${SOURCE_FILES})
 
 set(SOURCE_FILES client/philosopher.cpp client/philosopher.h)

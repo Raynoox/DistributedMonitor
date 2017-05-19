@@ -14,6 +14,9 @@ public:
     int consume(int position) {
         spinbuf.getAndClear(position);
     }
+    int consumeNext() {
+        spinbuf.getAndClearNext();
+    }
     void* getSpinbuf() {
         return &spinbuf;
     }

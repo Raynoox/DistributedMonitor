@@ -32,15 +32,21 @@ proxy=zzz.zzz.zzz.zzz (e.g.)
 
 To broadcast messages, each host needs to have ./DistributedMonitor launched in background which passes messages from and to local processes
 
+!!!IMPORTANT!!! before programs start asking to synchronize, all processes must first "register" in theirs DistributedMonitors (so they can answer for requests, otherwise program will wait endlessly) (in example programs, you need to run programs on all hosts, and if all programs are running, hit enter to start calculations) !!!IMPORTANT!!!
+program can "register" with pthread_create(pthread_t, NULL, &Monitor::handle_message, Monitor*);
+
 Implement your program using Monitor operations:
 lock() - asks others for access, and then block others
 unlock() - unlocks mutex
 wait(conditional_id) - forces thread to wait for signal(conditional_id) from other thread
 signal(conditional_id) - wakes up other thread which wait on conditional_id
+
+class Lockwrapper -> works as SYNCHRONIZED in JAVA (can conditionally stop with wait(ID) method)
+
 example:
 Buffer : Monitor {
 	void put(int x) {
-		lock(ID);
+		Lockwrapper temp(this);
 		while(dataArray->getValue()[0]==0) {
 			wait(COND_ID,ID);
 		}
@@ -49,17 +55,17 @@ Buffer : Monitor {
 		unlock(ID);
 	}
 	int get() {
-		lock(ID);
+		Lockwrapper temp(this);
 		while(dataArray->getValue()[0]!=0) {
 			wait(COND_ID2,ID);
 		}
 		int result = dataArray->getValue()[0];
 		dataArray->getValue()[0] = 0;
 		signal(COND_ID,ID);
-		unlock(ID);
 		return result;
 	}
 }
+## dataArray is data sent in this monitor (array of integers)
 
 to support other types of data in monitor, you need to declare your own DataSerial class in monitor.h and implement serialize method (boost 1.61)
 

@@ -14,6 +14,9 @@ public:
     void produce(int position, int value) {
         spinbuf.putInto(position, value);
     }
+    void produceNext(int value) {
+        spinbuf.putIntoNext(value);
+    }
     void* getSpinbuf() {
         return &spinbuf;
     }

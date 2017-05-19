@@ -2,7 +2,7 @@
 // Created by root on 5/17/17.
 //
 #include "monitor.h"
-
+#include "lockwrapper.h"
 #ifndef DISTRIBUTEDMONITOR_TABLE_H
 #define DISTRIBUTEDMONITOR_TABLE_H
 class Table : public Monitor {
@@ -13,10 +13,9 @@ public:
         monitor_id = mon_id;
     }
     void pickForks(int place) {
-        cout<<"TRYING TO TAKE "<<place<<endl;
-        lock(1);
+        Lockwrapper l(this);
         while(!((dataArray->getValue()[(place)%size] == 2))) {
-            wait(1,1);
+            wait(1);
         }
         //negative modulo hack
         if(place == 0){
@@ -26,10 +25,9 @@ public:
         }
         dataArray->getValue()[(place+1)%size]--;
         dataArray->print();
-        unlock(1);
     }
     void releaseForks(int place) {
-        lock(1);
+        Lockwrapper l(this);
         cout<<"RELEASING FORKS"<<endl;
         if(place == 0){
             dataArray->getValue()[(size-1)]++;
@@ -38,7 +36,6 @@ public:
         }
         dataArray->getValue()[(place+1)%size]++;
         signal(1);
-        unlock(1);
     }
 private:
     int monitor_id;

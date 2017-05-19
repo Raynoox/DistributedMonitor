@@ -2,7 +2,8 @@
 #include "producer.h"
 #include "consumer.h"
 #include "configuration.h"
-
+#include <time.h>
+#include <stdlib.h>
 #include <string>
 
 
@@ -31,8 +32,9 @@ public:
             getchar();
             int pos = 0;
             while(true) {
-               // sleep(1);
-                c.consume((pos++)%ARRAY_SIZE);
+                usleep(10000);
+//                c.consume((pos++)%ARRAY_SIZE);
+                c.consumeNext();
             }
         } else if (type.compare("P") == 0) {
             printf("PRODUCER INITIALIZATION\n");
@@ -43,9 +45,11 @@ public:
             cout<<"PROCESS IS HANDLING MESSAGES"<<endl<<"PRESS <ENTER> TO START WORK"<<endl;
             getchar();
             int pos = 0;
+            srand(time(NULL));
             while(true) {
-             //   sleep(1);
-                p.produce((pos++)%ARRAY_SIZE, 15);
+                usleep(10000);
+//                p.produce((pos++)%ARRAY_SIZE, 15);
+                p.produceNext(rand()%100+1);
             }
         } else {
             cout<<"Wrong type! -> "<<type<<endl;

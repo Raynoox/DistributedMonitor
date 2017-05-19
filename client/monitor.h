@@ -42,7 +42,6 @@ struct Message {
     int consMod;
     int stop_propagate = 0;
     MSG_T type;
-    int mutexId;
     int condId;
     int data[100];
     char dataString[1024];
@@ -89,57 +88,6 @@ public:
         return value;
     }
 };
-template <class T>
-class GenericMessage {
-public:
-
-    GenericMessage(int id,int type, T msg):
-            beId(id),
-            msg_type(type),
-            data(msg)
-    {}
-
-    ~GenericMessage(){}
-
-    T getData()
-    {
-        //LINE 18 is the following line!
-        return data;
-    }
-
-    std::string toString()
-    {
-        std::ostringstream ss;
-        ss << getBeId();
-        std::string ret = ss.str();
-        return ss.str();
-    }
-
-    void setBeId(int id)
-    {
-        beId = id;
-    }
-
-    int getBeId()
-    {
-        return beId;
-    }
-
-    void setMsgType(int type)
-    {
-        msg_type = type;
-    }
-
-    int getMsgType()
-    {
-        return msg_type;
-    }
-private:
-    int beId;
-    int msg_type;
-    T data;
-};
-
 
 class CompareQueue
 {
@@ -185,26 +133,19 @@ public:
         pthread_t handle_message_thread;
     }
 
-
-    GenericMessage<pair<int,int>> prepare_message(int MSG_TYPE) {
-        pair<int,int> p = make_pair(pid,ltime);
-        GenericMessage<pair<int,int>> message = GenericMessage<pair<int,int>>(pid, MSG_TYPE, p);
-        return message;
-    }
-    zmq::message_t prepare_empty(MSG_T TYPE,int mutexId){ //for lock
+    zmq::message_t prepare_empty(MSG_T TYPE){ //for lock
         struct Message m;
         m.pid=pid;
         m.monitorId=monitorId;
         m.consMod = consMod;
         m.prodMod = prodMod;
         m.type = TYPE;
-        m.mutexId = mutexId;
         m.time = ltime++;
         zmq::message_t msg (sizeof(struct Message));
         memcpy (msg.data (), &m, (sizeof(struct Message)));
         return msg;
     }
-    zmq::message_t prepare_ack(int mutexId, int destination) { //for ack message
+    zmq::message_t prepare_ack(int destination) { //for ack message
         struct Message m;
         m.pid=pid;
         m.monitorId=monitorId;
@@ -212,20 +153,18 @@ public:
         m.prodMod = prodMod;
         m.type = ACK;
         m.destpid = destination;
-        m.mutexId = mutexId;
         m.time = ltime++;
         zmq::message_t msg (sizeof(struct Message));
         memcpy (msg.data (), &m, (sizeof(struct Message)));
         return msg;
     }
-    zmq::message_t prepare_message(MSG_T TYPE, int mutexId, int condId) { //message with Data (signal, release)
+    zmq::message_t prepare_message(MSG_T TYPE, int condId) { //message with Data (signal, release)
         struct Message m;
         m.pid = pid;
         m.monitorId=monitorId;
         m.consMod = consMod;
         m.prodMod = prodMod;
         m.type = TYPE;
-        m.mutexId = mutexId;
         m.condId = condId;
         m.time = ltime++;
         ostringstream oss;
@@ -251,12 +190,12 @@ public:
         }
         cout<<endl;
     }
-    void lock(int mutexId) {
+    void lock() {
         pthread_mutex_lock(&ack_mutex);
         ack = new int[PROC_NUM];
         memset(ack, 0, PROC_NUM*sizeof(*ack)); //zero ack table
         pthread_mutex_lock(&send_mutex);
-        sock_req_->send(prepare_empty(REQUEST,mutexId));
+        sock_req_->send(prepare_empty(REQUEST));
         pthread_mutex_unlock(&send_mutex);
         printMessage("REQUEST SENT");
         cout<<"REQUEST PARAMS: time->"<<ltime-1<<" proc_num->"<<PROC_NUM<<endl;
@@ -274,8 +213,8 @@ public:
             pthread_cond_wait(&queue_cond, &queue_mutex);
         }
     }
-    void wait(int condId, int mutexId) {
-        unlock(mutexId);
+    void wait(int condId) {
+        unlock();
         pthread_mutex_lock(&wait_mutex);
         signal_waiting_index = condId;
         printMessage("WAITING");
@@ -284,18 +223,18 @@ public:
         signal_waiting_index = -1;
         pthread_mutex_unlock(&wait_mutex);
         ltime--;
-        lock(mutexId);
+        lock();
     }
     void signal(int condId) {
         pthread_mutex_lock(&send_mutex);
-        sock_req_->send(prepare_message(SIGNAL,-1,condId));
+        sock_req_->send(prepare_message(SIGNAL,condId));
         pthread_mutex_unlock(&send_mutex);
         printMessage("SIGNALED");
     }
-    void unlock(int mutexId) {
+    void unlock() {
         pq.pop();
         pthread_mutex_lock(&send_mutex);
-        sock_req_->send(prepare_message(RELEASE,mutexId, -1));
+        sock_req_->send(prepare_message(RELEASE, -1));
         pthread_mutex_unlock(&send_mutex);
         printMessage("RELEASED");
     }
@@ -334,7 +273,7 @@ public:
     //                    cout<<"sen";
                         pthread_mutex_lock(&(_this->send_mutex));
                         _this->ltime = max(msg2->time+1, _this->ltime);
-                        sock_req_->send(_this->prepare_ack(msg2->mutexId,msg2->pid));
+                        sock_req_->send(_this->prepare_ack(msg2->pid));
                         pthread_mutex_unlock(&(_this->send_mutex));
                         break;
                     }
